@@ -2,45 +2,61 @@ const { Pool } = require("pg");
 
 // PostgreSQL connection
 const pool = new Pool({
-  user: "postgres", //This _should_ be your username, as it's the default one Postgres uses
+  user: "postgres",
   host: "localhost",
-  database: "movie_db", //This should be changed to reflect your actual database
-  password: "Wormy1!", //This should be changed to reflect the password you used when setting up Postgres
+  database: "movie_db",
+  password: "Wormy1!",
   port: 5432,
 });
+
+// I like to include some empty console.log()s above stuf that prints in the terminal to help with readability
 
 /**
  * Creates the database tables, if they do not already exist.
  */
 async function createTable() {
-  const createMovieTable = `CEATE TABLE IF NOT EXISTS movies (
-    id SERIAL PRIMARY KEY,
+  // Create the table for movies
+  const createMovieTable = `CREATE TABLE IF NOT EXISTS movies (
+    movie_id SERIAL PRIMARY KEY,
     title VARCHAR(255) NOT NULL,
     year INTEGER NOT NULL,
-    genre VARCHAR(255) NOT NULL,
+    genre VARCHAR(100) NOT NULL,
     director VARCHAR(255) NOT NULL
-  );
-  `;
+  );`;
+
+  // Create the table for customers
   const createCustomerTable = `CREATE TABLE IF NOT EXISTS customers (
-    id SERIAL PRIMARY KEY,
-    name VARCHAR(255) NOT NULL,
-    email VARCHAR(255) NOT NULL
-  );
-  `;
+    customer_id SERIAL PRIMARY KEY,
+    first_name VARCHAR(100) NOT NULL,
+    last_name VARCHAR(100) NOT NULL,
+    email VARCHAR(255) NOT NULL UNIQUE,
+    phone_number TEXT NOT NULL
+  );`;
+
+  // Create the table for rentals
   const createRentalTable = `CREATE TABLE IF NOT EXISTS rentals (
-    id SERIAL PRIMARY KEY,
-    movie_id INTEGER REFERENCES movies(id),
-    customer_id INTEGER REFERENCES customers(id),
+    rental_id SERIAL PRIMARY KEY,
+    customer_id INTEGER REFERENCES customers(customer_id) ON DELETE CASCADE,
+    movie_id INTEGER REFERENCES movies(movie_id),
     rental_date DATE NOT NULL,
     return_date DATE
-  );
-  `;
-  await pool.query(createMovieTable);
-  await pool.query(createCustomerTable);
-  await pool.query(createRentalTable);
+  );`;
 
-  console.log();
-  console.log("Tables for movies, customers and rentals created successfully");
+  // using a try catch block for potential errors (i bet i willforget to open pgadmin and start the server)
+  try {
+    await pool.query(createMovieTable);
+    await pool.query(createCustomerTable);
+    await pool.query(createRentalTable);
+
+    console.log();
+    console.log(
+      "Tables for movies, customers and rentals created successfully."
+    );
+  } catch (error) {
+    console.log();
+    console.error("Error: ", error);
+    return;
+  }
 }
 
 /**
@@ -52,14 +68,48 @@ async function createTable() {
  * @param {string} director Director of the movie
  */
 async function insertMovie(title, year, genre, director) {
-  // TODO: Add code to insert a new movie into the Movies table
+  const newMovie = `INSERT INTO movies (title, year, genre, director) 
+                    VALUES ($1, $2, $3, $4) 
+                    RETURNING movie_id, title`;
+
+  try {
+    const result = await pool.query(newMovie, [title, year, genre, director]);
+    console.log();
+    console.log(
+      `New movie added: "${title}" with ID ${result.rows[0].movie_id}`
+    );
+  } catch (error) {
+    console.log();
+    console.error("Error: ", error.message);
+  }
 }
 
 /**
  * Prints all movies in the database to the console
  */
 async function displayMovies() {
-  // TODO: Add code to retrieve and print all movies from the Movies table
+  const getMovies = `SELECT * FROM movies ORDER BY title`;
+
+  try {
+    const result = await pool.query(getMovies);
+    console.log();
+    console.log("Movies in the database:");
+    if (result.rows.length === 0) {
+      console.log();
+      console.log("No movies found in the database.");
+      return;
+    }
+
+    result.rows.forEach((movie) => {
+      console.log();
+      console.log(
+        `  ${movie.title} (${movie.year}) - ${movie.genre}, directed by ${movie.director}`
+      );
+    });
+  } catch (error) {
+    console.log();
+    console.error("Error ", error.message);
+  }
 }
 
 /**
@@ -69,7 +119,28 @@ async function displayMovies() {
  * @param {string} newEmail New email address of the customer
  */
 async function updateCustomerEmail(customerId, newEmail) {
-  // TODO: Add code to update a customer's email address
+  const updateEmail = `
+    UPDATE customers 
+    SET email = $2 
+    WHERE customer_id = $1
+    RETURNING customer_id, first_name, last_name, email`;
+
+  try {
+    const result = await pool.query(updateEmail, [customerId, newEmail]);
+    if (result.rows.length === 0) {
+      console.log();
+      console.log(`No customer found with ID ${customerId}`);
+      return;
+    }
+    const customer = result.rows[0];
+    console.log();
+    console.log(
+      `Updated email for: ${customer.first_name} ${customer.last_name} to ${customer.email}`
+    );
+  } catch (error) {
+    console.log();
+    console.error("Error :", error.message);
+  }
 }
 
 /**
@@ -78,7 +149,23 @@ async function updateCustomerEmail(customerId, newEmail) {
  * @param {number} customerId ID of the customer to remove
  */
 async function removeCustomer(customerId) {
-  // TODO: Add code to remove a customer and their rental history
+  const query =
+    "DELETE FROM customers WHERE customer_id = $1 RETURNING first_name, last_name";
+  try {
+    const response = await pool.query(query, [customerId]);
+    if (response.rowCount > 0) {
+      console.log();
+      console.log(
+        `Customer ${response.rows[0].first_name} ${response.rows[0].last_name} and their rental history removed from the database`
+      );
+    } else {
+      console.log();
+      console.log(`No customer found with ID ${customerId}`);
+    }
+  } catch (error) {
+    console.log();
+    console.error("Error removing customer:", error.message);
+  }
 }
 
 /**
