@@ -13,7 +13,34 @@ const pool = new Pool({
  * Creates the database tables, if they do not already exist.
  */
 async function createTable() {
-  // TODO: Add code to create Movies, Customers, and Rentals tables
+  const createMovieTable = `CEATE TABLE IF NOT EXISTS movies (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    year INTEGER NOT NULL,
+    genre VARCHAR(255) NOT NULL,
+    director VARCHAR(255) NOT NULL
+  );
+  `;
+  const createCustomerTable = `CREATE TABLE IF NOT EXISTS customers (
+    id SERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    email VARCHAR(255) NOT NULL
+  );
+  `;
+  const createRentalTable = `CREATE TABLE IF NOT EXISTS rentals (
+    id SERIAL PRIMARY KEY,
+    movie_id INTEGER REFERENCES movies(id),
+    customer_id INTEGER REFERENCES customers(id),
+    rental_date DATE NOT NULL,
+    return_date DATE
+  );
+  `;
+  await pool.query(createMovieTable);
+  await pool.query(createCustomerTable);
+  await pool.query(createRentalTable);
+
+  console.log();
+  console.log("Tables for movies, customers and rentals created successfully");
 }
 
 /**
